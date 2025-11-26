@@ -1,0 +1,35 @@
+Programa 6 comdis:
+
+Pasos ejecucion:
+1º javac -cp jade.jar:. *.java
+2º java -cp jade.jar:. jade.Boot -gui -agents "vendedor:Vendedor"
+3º java -cp jade.jar:. MenuClientes
+
+
+
+
+Funcionamiento:
+
+2 agentes
+Vendedor:
+ - Inicia la subasta
+ - Controla el timpo(retardo 10s)
+ - Valida as distintas pujas
+ - Decide a quen lle vende
+ 
+ Ten que conocer a lista de libros, precio actual do libro, incremento minimo
+
+Comprador:
+ - Escoita as ofertas
+ - Decide si lle interesa
+ - Decide a quen compra
+ 
+ Conoce o diñeiro maximo e o libro que busca
+ 
+ 1º Vendedor envia mensaje aos compradores.
+ 2º Espera 10 segundos pa que comprador pense.
+ 3º Comprador recibe mensaje, evalua si lle entra no presupuesto.
+ 4º Vendedor mira respuestas:
+ 	4a. Si nadie quixo, gana o que puxou na anterior ronda.
+ 	4b. Varios puxan, elige e incrementa o precio e repite co novo precio.
+ 	4c. Si solo puxa un, asignaselle directamente.
