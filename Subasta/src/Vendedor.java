@@ -9,183 +9,287 @@ import jade.lang.acl.MessageTemplate;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class Vendedor extends Agent {
     private VendedorGUI myGui;
-    // Map: titulo -> comportamiento de subasta
+
+
+    // subastasActivas: Map con los procesos (Behaviours) que están en ejecución
     private Map<String, FuncionamientoSubasta> subastasActivas = new ConcurrentHashMap<>();
 
-    protected void setup() {
-        myGui = new VendedorGUI(this);
-        myGui.log("Vendedor listo. Usa la GUI para iniciar subastas.");
-    }
+    // pendientes: Datos de subastas creadas en la GUI pero que aún no iniciados
+    private final Map<String, SubastaInfo> pendientes = Collections.synchronizedMap(new HashMap<>());
 
-    // Llamado por la GUI para iniciar una nueva subasta
-    public synchronized void iniciarSubasta(String titulo, int precioInicial, int incremento) {
-        if (subastasActivas.containsKey(titulo)) {
-            myGui.log("Ya existe una subasta para: " + titulo);
-            return;
+    //Clase auxiliar para alamacenar los datos de la subasta de un determinado libro
+    private static class SubastaInfo {
+        String titulo;
+        int precioInicial;
+        int incremento;
+
+        SubastaInfo(String t, int p, int i) {
+            this.titulo = t;
+            this.precioInicial = p;
+            this.incremento = i;
         }
-        FuncionamientoSubasta sub = new FuncionamientoSubasta(this, titulo, precioInicial, incremento);
-        subastasActivas.put(titulo, sub);
-        addBehaviour(sub);
-        myGui.log("Subasta creada: " + titulo);
-        myGui.addOrUpdateSubasta(titulo, precioInicial, 0, "Iniciada");
     }
 
+    // Cro el agente
+    protected void setup() {
+        //Inicializo la ventanadel agente
+        javax.swing.SwingUtilities.invokeLater(() -> {myGui = new VendedorGUI(this);myGui.log("Agente Vendedor iniciado: " + getLocalName());});
+    }
+
+    //Terminacion del agente
     protected void takeDown() {
-        myGui.log("Vendedor terminando.");
+        if (myGui != null) {
+            myGui.dispose(); // Cierra la ventana si se cierra el agente
+        }
+        System.out.println("Vendedor " + getLocalName() + " terminando.");
     }
 
-    // Subclase que gestiona una sola subasta
-    private class FuncionamientoSubasta extends Behaviour {
-        private final Agent agent;
-        private final String libro;
-        private int precioActual;
-        private final int incremento;
-        private int paso = 0;
-        private AID[] compradores = new AID[0];
-        private MessageTemplate mt;
-        private int respuestasRecibidas;
-        private int numPropuestas;
-        private AID posibleGanador;
-        private AID ganadorAnterior;
-        private long esperaDecision;
-        private boolean terminado = false;
+    //Funcion de los botones
 
+    // Botón "Crear": Solo guarda los datos, no arranca nada aún.
+    public void almacenarSubasta(String titulo, int precio, int inc) {
+        pendientes.put(titulo, new SubastaInfo(titulo, precio, inc));
+    }
+
+    //Saca los datos de pendientes y le mete en (Behaviour) al agente.
+    public boolean iniciarSubastaEspecifica(String titulo) {
+        SubastaInfo info = pendientes.remove(titulo);
+
+        if (info != null) {
+            //Creo  lógica de la subasta para el libro y la añado a la cola de tareas del agente
+            FuncionamientoSubasta behaviour = new FuncionamientoSubasta(this, info.titulo, info.precioInicial, info.incremento);
+            subastasActivas.put(titulo, behaviour);
+            addBehaviour(behaviour);
+            if(myGui != null) myGui.log("Comportamiento añadido para: " + titulo);
+            return true;
+        }
+        return false;
+    }
+
+
+    //Clase donde gestiono como se vende un libro
+    private class FuncionamientoSubasta extends Behaviour {
+        private Agent agent;
+        private String libro;
+        private int precioActual;
+        private int incremento;
+        private int paso = 0; // Controla en qué fase esta el agente (0:Inicio, 1:Preguntar, 2:Escuchar, 3:Decidir)
+
+        private AID[] compradores = new AID[0]; //Lista de compradores interesados
+        private MessageTemplate mt;// Filtro para coger solo los mensajes que interesan
+        private int respuestasRecibidas;//COntador de respuestas
+        private int numPropuestas;// Contador de personas que han entrado a la puja
+
+        private AID posibleGanador; //Primera persona que ha pujado en esta ronda
+        private AID ganadorAnterior;//El que ganó la ronda anterior (en caso de que en la siguiente ronda no pujase nadie)
+
+        private long esperaDecision;     // Variable para que haya una espera de 10 segundos
+        private boolean terminado = false; // Para saber cuándo se termino la puja de un libro
         public FuncionamientoSubasta(Agent a, String titulo, int p, int inc) {
+            super(a);
             this.agent = a;
             this.libro = titulo;
             this.precioActual = p;
             this.incremento = inc;
         }
 
+        // Este método  se ejecuta en bucle infinito hasta que digamos "done()"
         public void action() {
             switch (paso) {
                 case 0:
-                    // Buscar compradores interesados (dinámico cada ronda)
-                    try {
-                        DFAgentDescription dfd = new DFAgentDescription();
-                        ServiceDescription sd = new ServiceDescription();
-                        sd.setType("subasta-libros");
-                        dfd.addServices(sd);
-                        DFAgentDescription[] result = DFService.search(agent, dfd);
-                        compradores = Arrays.stream(result).map(DFAgentDescription::getName).toArray(AID[]::new);
-                    } catch (FIPAException fe) {
-                        compradores = new AID[0];
-                    }
-                    if (compradores.length == 0) {
-                        myGui.log("[" + libro + "] No hay compradores conectados. Esperando y reintentando...");
-                        myGui.addOrUpdateSubasta(libro, precioActual, 0, "Esperando compradores");
-                        block(2000); // reintentar tras 2s
-                        return;
-                    } else {
-                        myGui.log("[" + libro + "] Participantes encontrados: " + compradores.length);
-                    }
-                    paso = 1;
+                    // Simplemente imprimo  en el log de que comienza la subasta
+                    myGui.log("--- Iniciando subasta del libro: " + libro + " ---");
+                    paso = 1; //VOy al paso 1
                     break;
 
-                case 1:
-                    // Enviar CFP a todos los compradores
+                case 1: 
+
+                    // 1. CONSULTA A LAS PÁGINAS AMARILLAS (DF)
+                    // Hacemos esto en cada ronda para que si un jugador entra en la ronda 5 lo tenga también en cuenta
+                    
+                    DFAgentDescription template = new DFAgentDescription();
+                    ServiceDescription sd = new ServiceDescription();
+                    sd.setType("subasta-libros"); //Buscamos a cualquiera que sea de tipo "comprador de libros"
+                    template.addServices(sd);
+                    try {
+                        DFAgentDescription[] result = DFService.search(agent, template);
+                        compradores = new AID[result.length];
+                        for (int i = 0; i < result.length; ++i) {
+                            compradores[i] = result[i].getName();
+                        }
+                    } catch (FIPAException fe) {
+                        fe.printStackTrace();
+                    }
+
+                    // COmpruebo que haya compradores
+                    if (compradores.length == 0) {
+                        // Si no hay compradores cada 5 ssegundos voy comprobando si alguien se une
+                        // Uso block() para no congelar al resto del agente, porque con sleep se bloquearia todo, con block libero cpu
+
+                         
+                        myGui.log("[" + libro + "] Sin compradores. Esperando...");
+                        block(5000);
+                        return;
+                    }
+
+                    // 3.Inicio a ronda de subasta: Calzoncillos a 5 euros!!
+                    
                     ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
-                    for (AID c : compradores) cfp.addReceiver(c);
-                    cfp.setContent(libro + ":" + precioActual);
+                    for (AID comprador : compradores) {
+                        cfp.addReceiver(comprador); //añado a todos os compradores pa que lle chegue a notificacions
+                    }
+                    cfp.setContent(libro + ":" + precioActual); //Contido"Libro:precio"
+
+                    // ID de Conversación para distinguir la subasta del libro A de la del libro B
                     cfp.setConversationId("subasta-" + libro);
-                    cfp.setReplyWith("cfp" + System.currentTimeMillis());
-                    agent.send(cfp);
+                    cfp.setReplyWith("cfp" + System.currentTimeMillis()); // ID único de este mensaje
+                    agent.send(cfp); // ¡Enviado!
+
+                    // 4. PREPARAR EL FILTRO (TEMPLATE)
+                    // Le decimos a nuestro secretario: "Solo pásame las respuestas a ESTE mensaje (ReplyWith)
+                    // y que sean de ESTA conversación (ConversationId)". Así no mezclamos temas.
                     mt = MessageTemplate.and(
                             MessageTemplate.MatchConversationId("subasta-" + libro),
                             MessageTemplate.MatchInReplyTo(cfp.getReplyWith())
                     );
+
+                    // Reseteamos contadores para empezar la ronda limpia
                     respuestasRecibidas = 0;
                     numPropuestas = 0;
-                    posibleGanador = null;
-                    myGui.addOrUpdateSubasta(libro, precioActual, 0, "Oferta lanzada");
-                    paso = 2;
+                    posibleGanador = null; //null para capturar al "primero" que llegue
+
+                    myGui.addOrUpdateSubasta(libro, precioActual, 0, "Esperando ofertas...");
+                    paso = 2; // Avanzamos a la fase de esperar respuestas
                     break;
 
-                case 2:
-                    // Recibir respuestas
+                case 2: 
+                    // Miramos en el buzón usando el filtro (mt) que creamos antes
                     ACLMessage msg = agent.receive(mt);
+
                     if (msg != null) {
+                        // ¡Ha llegado una carta válida!
                         respuestasRecibidas++;
+
+                        // Si el mensaje es PROPOSE, significa que quieren comprar (pujan)
                         if (msg.getPerformative() == ACLMessage.PROPOSE) {
                             numPropuestas++;
-                            posibleGanador = msg.getSender();
-                            myGui.log("[" + libro + "] Puja recibida de " + msg.getSender().getLocalName());
-                            myGui.addOrUpdateSubasta(libro, precioActual, numPropuestas, "Pujas: " + numPropuestas);
+
+                            // REQUISITO: "Asignarse al PRIMER comprador"
+                            // Si posibleGanador está vacío, este es el primero. ¡Adjudicado provisionalmente!
+                            if (posibleGanador == null) {
+                                posibleGanador = msg.getSender();
+                            }
+                            // Si ya había alguien, ignoramos a este segundo (aunque contamos su propuesta para saber que hay competencia)
+
+                            myGui.addOrUpdateSubasta(libro, precioActual, numPropuestas, "Oferta recibida");
                         }
+                        // Nota: Si mandan REFUSE (rechazar), solo sumamos respuestasRecibidas pero no hacemos nada más.
+
+                        // Si ya han contestado TODOS los compradores que encontramos...
                         if (respuestasRecibidas >= compradores.length) {
-                            paso = 3;
-                            esperaDecision = System.currentTimeMillis() + 5000; // esperar 5s para decidir
-                            myGui.log("[" + libro + "] Esperando " + 5 + "s para decidir...");
+                            // REQUISITO: "El vendedor debe esperar 10 segundos antes de asignar nuevo precio"
+                            // Guardamos la hora a la que podremos seguir.
+                            esperaDecision = System.currentTimeMillis() + 10000;
+                            paso = 3; // Nos vamos a la sala de espera
                         }
                     } else {
+                        // Si el buzón está vacío, nos bloqueamos hasta que llegue correo nuevo.
+                        // Esto libera la CPU para que otras subastas funcionen
                         block();
                     }
                     break;
 
-                case 3:
-                    if (System.currentTimeMillis() < esperaDecision) {
-                        block(500);
-                        return;
+                case 3: 
+                    // Calculamos cuánto falta para que pasen los 10 segundos
+                    long tiempoRestante = esperaDecision - System.currentTimeMillis();
+
+                    if (tiempoRestante > 0) {
+                        //si ainda non pasan os 10 segundos durmo ao axente o tempo restante
+                        block(tiempoRestante);
+                        return; // Salimos y volvemos luego
                     }
-                    // Evaluar resultados
+
+                    
+
                     if (numPropuestas == 0) {
+                        // CASO A: Nadie quiere el libro a este precio.
                         if (ganadorAnterior != null) {
+                            //si nadie nesta ronda quiere el libro se lo damos al que pujo en la ronda anterior por el
+                            
                             int precioVenta = precioActual - incremento;
-                            myGui.log("[" + libro + "] ¡VENDIDO! Ganador: " + ganadorAnterior.getLocalName() + " por " + precioVenta + "€");
-                            informarGanador(ganadorAnterior, precioVenta);
+                            aceptarVenta(ganadorAnterior, precioVenta);
                         } else {
-                            myGui.log("[" + libro + "] Subasta sin éxito. Nadie pujó.");
-                            notificarFinalSinLote();
+                            //nadie nunca ha pujado por el subasta terminada.
+                            myGui.log("[" + libro + "] Nadie pujó por el precio inicial.");
+                            notificarFracaso();
                         }
-                        terminado = true;
-                    } else if (numPropuestas == 1) {
-                        myGui.log("[" + libro + "] ¡VENDIDO! Ganador: " + posibleGanador.getLocalName() + " por " + precioActual + "€");
-                        informarGanador(posibleGanador, precioActual);
-                        terminado = true;
-                    } else {
-                        precioActual += incremento;
+                        terminado = true; // Fin del comportamiento
+                    }
+                    else if (numPropuestas == 1) {
+                        // CASO B: Solo hay UN interesado en esta ronda.
+                        // No hace falta subir más el precio, se lo vendemos a él directamente.
+                        
+                        aceptarVenta(posibleGanador, precioActual);
+                        terminado = true; // Fin
+                    }
+                    else {
+                        // CASO C: Hay COMPETENCIA (>1 propuestas).
+                        // Guardamos al ganador de esta ronda como "ganadorAnterior" por si en la siguiente nadie puja
                         ganadorAnterior = posibleGanador;
-                        myGui.log("[" + libro + "] " + numPropuestas + " pujaron. Subimos a " + precioActual + "€");
-                        myGui.addOrUpdateSubasta(libro, precioActual, numPropuestas, "Subiendo precio");
-                        paso = 0; // repetir ronda
+
+                        // Subo el precio 
+                        precioActual += incremento;
+                        myGui.log("[" + libro + "] ¡Competencia (" + numPropuestas + " pujas)! Subiendo precio a " + precioActual);
+
+                        //Volver al paso 1, volver a buscar compradores y enviar nuevo precio.
+                        paso = 1;
                     }
                     break;
             }
         }
 
-        private void informarGanador(AID ganador, int precioVenta) {
-            ACLMessage accept = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
-            accept.addReceiver(ganador);
-            accept.setContent(libro + ":" + precioVenta);
-            accept.setConversationId("subasta-" + libro);
-            agent.send(accept);
+        // Método auxiliar para cerrar el trato
+        private void aceptarVenta(AID ganador, int precio) {
+            // 1. Mandamos mensaje al ganador: "ACCEPT_PROPOSAL"
+            ACLMessage order = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+            order.addReceiver(ganador);
+            order.setContent(libro + ":" + precio);
+            order.setConversationId("subasta-" + libro);
+            agent.send(order);
 
+            // 2. Mandamos mensaje a TODOS (perdedores incluidos) para informar
             ACLMessage info = new ACLMessage(ACLMessage.INFORM);
-            for (AID c : compradores) {
-                if (!c.equals(ganador)) info.addReceiver(c);
+            for(AID c : compradores) {
+                if(!c.equals(ganador)) info.addReceiver(c); // A todos menos al que ya le avisé
             }
-            info.setContent("FINALIZADA:" + libro + ":" + ganador.getLocalName() + ":" + precioVenta);
+            //"FINALIZADA:Libro:Ganador:Precio". El Comprador espera este formato exacto
+            info.setContent("FINALIZADA:" + libro + ":" + ganador.getLocalName() + ":" + precio);
             info.setConversationId("subasta-" + libro);
             agent.send(info);
 
-            myGui.addOrUpdateSubasta(libro, precioActual, 0, "Finalizada - Vendido a " + ganador.getLocalName());
-            subastasActivas.remove(libro);
+            myGui.log("[" + libro + "] VENDIDO a " + ganador.getLocalName() + " por " + precio);
+            myGui.addOrUpdateSubasta(libro, precio, 0, "VENDIDO");
+            subastasActivas.remove(libro); // Borramos de la lista de tareas activas
         }
 
-        private void notificarFinalSinLote() {
+        // Método auxiliar cuando nadie compra
+        private void notificarFracaso() {
             ACLMessage info = new ACLMessage(ACLMessage.INFORM);
-            for (AID c : compradores) info.addReceiver(c);
+            for(AID c : compradores) info.addReceiver(c);
+
+            // Aviso de que se acabó sin venta
             info.setContent("FINALIZADA-SIN-VENTA:" + libro);
             info.setConversationId("subasta-" + libro);
             agent.send(info);
-            myGui.addOrUpdateSubasta(libro, precioActual, 0, "Finalizada - Sin venta");
+
+            myGui.addOrUpdateSubasta(libro, precioActual, 0, "CANCELADA");
             subastasActivas.remove(libro);
         }
 
+        // Método que JADE consulta para saber si debe borrar este comportamiento de la memoria
         public boolean done() {
             return terminado;
         }

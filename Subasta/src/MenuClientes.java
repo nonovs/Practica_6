@@ -23,8 +23,8 @@ public class MenuClientes extends JFrame {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JTextField campoNombre = crearCampo(panel, "Nombre Cliente (sin espacios):");
-        JTextField campoLibros = crearCampo(panel, "Libros (coma-sep):"); // ej: Java,IA,Redes
+        JTextField campoNombre = crearCampo(panel, "Nombre Cliente :");
+        JTextField campoLibros = crearCampo(panel, "Libros (,):"); // ej: Java,IA,Redes
         JTextField campoDinero = crearCampo(panel, "Presupuesto Máximo por libro:");
 
         JButton btnCrear = new JButton("CREAR CLIENTE");
@@ -40,7 +40,7 @@ public class MenuClientes extends JFrame {
             if (!nombre.isEmpty() && !libros.isEmpty() && !dinero.isEmpty()) {
                 crearAgente(nombre, libros, dinero);
                 campoNombre.setText("");
-                //chose to keep other fields for convenience
+
             } else {
                 JOptionPane.showMessageDialog(this, "Rellena todos los datos");
             }
@@ -62,10 +62,11 @@ public class MenuClientes extends JFrame {
             Profile p = new ProfileImpl();
             p.setParameter(Profile.MAIN_HOST, "localhost");
             p.setParameter(Profile.MAIN_PORT, "1099");
+            //creo el contenedor
             contenedorAgentes = rt.createAgentContainer(p);
             System.out.println("--- Conectado al sistema JADE correctamente ---");
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error conectando a JADE.\n¿Está el Main Container encendido?");
+            JOptionPane.showMessageDialog(this, "Error conectando a JADE.\nMain conntainesr");
             e.printStackTrace();
             System.exit(1);
         }
@@ -73,10 +74,11 @@ public class MenuClientes extends JFrame {
 
     private void crearAgente(String nombre, String librosComaSep, String dineroStr) {
         try {
-            // Convertir lista de libros a forma que el agente pueda entender
-            // Pasamos como dos argumentos: string con libros y presupuesto
+            //Convertir lista de libros a forma que el agente pueda entender
+            //Pasamos como dos argumentos: string con libros y presupuesto
             Object[] args = new Object[]{librosComaSep, dineroStr};
             AgentController agente = contenedorAgentes.createNewAgent(nombre, "Comprador", args);
+            //arranco el agente
             agente.start();
             System.out.println("Cliente " + nombre + " creado exitosamente.");
         } catch (Exception e) {

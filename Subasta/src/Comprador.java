@@ -11,10 +11,12 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Comprador extends Agent {
+    //Mapa donde guardo cuanto dinero tengo para cada libro
     private Map<String, Integer> presupuestoPorLibro = new ConcurrentHashMap<>();
     private CompradorGUI compradorGUI;
 
     protected void setup() {
+        //cojo los argumentos que me pasan al crear el agente
         Object[] args = getArguments();
         if (args == null || args.length < 2) {
             System.out.println("Comprador lanzado sin argumentos correctos.");
@@ -25,6 +27,7 @@ public class Comprador extends Agent {
         String librosRaw = (String) args[0];
         String dineroStr = (String) args[1];
 
+        //separo los libros por comas y quito espacios
         String[] libros = Arrays.stream(librosRaw.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -34,26 +37,30 @@ public class Comprador extends Agent {
         try {
             presupuesto = Integer.parseInt(dineroStr);
         } catch (NumberFormatException e) {
-            presupuesto = 100; // fallback
+            presupuesto = 100; //si falla pongo 100 por defecto
         }
 
-        // Guardar presupuesto por cada libro
+        //Guardo presupuesto por cada libro en el mapa
         for (String l : libros){
             presupuestoPorLibro.put(l.toLowerCase(), presupuesto);//Poño directamente todos en minuscula pa que non haia erros
         }
 
+        //arranco la interfaz grafica del comprador
         compradorGUI = new CompradorGUI(this, presupuestoPorLibro);
         compradorGUI.log("Agente " + getLocalName() + " creado. Intereses: " + Arrays.toString(libros));
 
+        //me apunto en las paginas amarillas
         registrarseEnDF();
 
-        // Behaviour principal: recibir mensajes relacionados con subastas
+        //Behaviour principal: bucle infinito para recibir mensajes
         addBehaviour(new CyclicBehaviour() {
             public void action() {
                 ACLMessage msg = receive();
                 if (msg != null) {
+                    //si me llega mensaje lo proceso
                     handleMessage(msg);
                 } else {
+                    //si no hay mensaje bloqueo para no gastar cpu
                     block();
                 }
             }
@@ -64,7 +71,7 @@ public class Comprador extends Agent {
         DFAgentDescription dfd = new DFAgentDescription();
         dfd.setName(getAID());
         ServiceDescription sd = new ServiceDescription();
-        sd.setType("subasta-libros"); // genérico: vendedor hace CFP a todos los "subasta-libros"
+        sd.setType("subasta-libros"); //digo que soy tipo subasta-libros para que el vendedor me encuentre
         sd.setName("SUBASTA-GLOBAL");
         dfd.addServices(sd);
         try {
@@ -79,7 +86,7 @@ public class Comprador extends Agent {
         String convId = msg.getConversationId();
         String content = msg.getContent();
 
-        // CFP: "Libro:precio"
+        // CFP: Me llega oferta "Libro:precio"
         if (perf == ACLMessage.CFP && content != null && content.contains(":")) {
             String[] parts = content.split(":");
             String titulo = parts[0].toLowerCase();//Nombres a minuscula todos
@@ -87,15 +94,19 @@ public class Comprador extends Agent {
 
             compradorGUI.log("Oferta: " + titulo + " a " + precio + "€");
 
+            //miro si el libro me interesa
             if (presupuestoPorLibro.containsKey(titulo)) {
                 int presupuesto = presupuestoPorLibro.get(titulo);
                 ACLMessage reply = msg.createReply();
+                
+                //compruebo si tengo dinero suficiente
                 if (precio <= presupuesto) {
                     reply.setPerformative(ACLMessage.PROPOSE);
                     reply.setContent(String.valueOf(precio));
                     compradorGUI.log(" -> ¡PUJO en " + titulo + " a " + precio + "€!");
                     compradorGUI.updateSubastaStatus(titulo, "Pujando: " + precio + "€");
                 } else {
+                    //si es muy caro paso
                     reply.setPerformative(ACLMessage.REFUSE);
                     reply.setContent("TOO_EXPENSIVE");
                     compradorGUI.updateSubastaStatus(titulo, "Muy caro: " + precio + "€");
@@ -109,14 +120,14 @@ public class Comprador extends Agent {
                 send(reply);
             }
         } else if (perf == ACLMessage.ACCEPT_PROPOSAL) {
-            // Ganador
+            // Ganador: me dicen que gané la subasta
             compradorGUI.log("***************************");
             compradorGUI.log("¡¡GANÉ " + content + "!!");
             compradorGUI.log("***************************");
             compradorGUI.updateSubastaStatus(content, "¡GANADO!");
-            // Podríamos doDelete() o seguir para otras subastas; lo dejamos activo
+            
         } else if (perf == ACLMessage.INFORM && content != null) {
-            // Contenido: "FINALIZADA:Libro:Ganador:precio" o "FINALIZADA-SIN-VENTA:Libro"
+            // Contenido: me informan de como acabo la cosa
             if (content.startsWith("FINALIZADA:")) {
                 String[] c = content.split(":");
                 String libro = c[1];

@@ -7,7 +7,7 @@ public class CompradorGUI extends JFrame {
     private Comprador comprador;
     private JTextArea logArea;
     private DefaultListModel<String> listaModel;
-    // mapa de estado por libro
+    //mapa de estado por libro
     private Map<String, String> estados = new ConcurrentHashMap<>();
 
     public CompradorGUI(Comprador a, Map<String, Integer> intereses) {
@@ -36,6 +36,7 @@ public class CompradorGUI extends JFrame {
         getContentPane().add(logScroll, BorderLayout.SOUTH);
 
         setSize(320, 420);
+        //lo pongo en una posicion aleatoria pa que no se solapen
         setLocation((int)(Math.random()*600)+200, (int)(Math.random()*300)+100);
 
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -44,7 +45,7 @@ public class CompradorGUI extends JFrame {
             }
         });
 
-        // Inicializar estados
+        //Inicializar estados
         intereses.keySet().forEach(k -> updateSubastaStatus(k, "Esperando ofertas"));
 
         setVisible(true);
