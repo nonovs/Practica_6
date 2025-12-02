@@ -8,19 +8,18 @@ import jade.domain.FIPAException;
 import jade.lang.acl.MessageTemplate;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class Vendedor extends Agent {
     private VendedorGUI myGui;
 
 
     // subastasActivas: Map con los procesos (Behaviours) que están en ejecución
-    private Map<String, FuncionamientoSubasta> subastasActivas = new ConcurrentHashMap<>();//Asi mantengo referencia a los procesos,
+    private Map<String, FuncionamientoSubasta> subastasActivas = new HashMap<>();//Asi mantengo referencia a los procesos,
     //Me permite saber que libros se estan subastando ahora y evita que dos subastas iguales vallan al mismo libro
     //COn concurrentHshMap non haria falta aqui porque realmente es para seguridad en caso de tener varios hilos accediendo, aunque
     //Jade estandar el agente es monohilo
     // pendientes: Datos de subastas creadas en la GUI pero que aún no iniciados
-    private final Map<String, SubastaInfo> pendientes = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, SubastaInfo> pendientes = new HashMap<>();
 
     //Clase auxiliar para alamacenar los datos de la subasta de un determinado libro
     private static class SubastaInfo {
@@ -41,13 +40,6 @@ public class Vendedor extends Agent {
         javax.swing.SwingUtilities.invokeLater(() -> {myGui = new VendedorGUI(this);myGui.log("Agente Vendedor iniciado: " + getLocalName());});
     }
 
-    //Terminacion del agente
-    protected void takeDown() {
-        if (myGui != null) {
-            myGui.dispose(); // Cierra la ventana si se cierra el agente
-        }
-        System.out.println("Vendedor " + getLocalName() + " terminando.");
-    }
 
     //Funcion de los botones
 
@@ -109,9 +101,12 @@ public class Vendedor extends Agent {
 
                 case 1: 
 
-                    // 1. CONSULTA A LAS PÁGINAS AMARILLAS (DF)
-                    // Hacemos esto en cada ronda para que si un jugador entra en la ronda 5 lo tenga también en cuenta
-                    
+                    // 1. Consulto DF
+                    // Hago esto en cada ronda para que si un jugador entra en la ronda 5 lo tenga también en cuenta
+                    //DFService.search para que me busque todos os compradores, asi podo meter compradores novos incluso a mitad de subasta.
+                    // Envio CFP(CALLproposal) co precio actual
+
+                    //Ao poñelo aqui podo conseguir que si creo nuevos compradores
                     DFAgentDescription template = new DFAgentDescription();
                     ServiceDescription sd = new ServiceDescription();
                     sd.setType("subasta-libros"); //Buscamos a cualquiera que sea de tipo "comprador de libros"
@@ -137,7 +132,7 @@ public class Vendedor extends Agent {
                         return;
                     }
 
-                    // 3.Inicio a ronda de subasta: Calzoncillos a 5 euros!!
+                    // 3.Inicio a ronda de subasta Calzoncillos a 5 euros!!
                     
                     ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
                     for (AID comprador : compradores) {
@@ -150,15 +145,19 @@ public class Vendedor extends Agent {
                     cfp.setReplyWith("cfp" + System.currentTimeMillis()); // ID único de este mensaje
                     agent.send(cfp); // ¡Enviado!
 
-                    // 4. PREPARAR EL FILTRO (TEMPLATE)
-                    // Le decimos a nuestro secretario: "Solo pásame las respuestas a ESTE mensaje (ReplyWith)
-                    // y que sean de ESTA conversación (ConversationId)". Así no mezclamos temas.
+                    // 4.Filtro mensajes
+                    // .Aqui para que o vendedor poida gestionar distintos libros ao mismo tempo teño: ConversationID e MessageTemplate
+                    //
+                    //Cada vez que se inicia unha subasta (instancia de FuncionamientoSubasta)
+                    // poñolle un ID a cada mensaje (subasta-tituloLibro),
+                    // despois co MessageTemplate o que fago e que me filtre e solo lea os mensajes con ese ID,
+                    // si mezclar pujas do libroA coas do libroB
                     mt = MessageTemplate.and(
                             MessageTemplate.MatchConversationId("subasta-" + libro),
                             MessageTemplate.MatchInReplyTo(cfp.getReplyWith())
                     );
 
-                    // Reseteamos contadores para empezar la ronda limpia
+                    // Reseteamos contadores para empezar la ronda siguiente
                     respuestasRecibidas = 0;
                     numPropuestas = 0;
                     posibleGanador = null; //null para capturar al "primero" que llegue
@@ -179,8 +178,8 @@ public class Vendedor extends Agent {
                         if (msg.getPerformative() == ACLMessage.PROPOSE) {
                             numPropuestas++;
 
-                            // REQUISITO: "Asignarse al PRIMER comprador"
-                            // Si posibleGanador está vacío, este es el primero. ¡Adjudicado provisionalmente!
+                            // Asignase al PRIMER comprador
+                            // Si posibleGanador está vacío, este es el primero.
                             if (posibleGanador == null) {
                                 posibleGanador = msg.getSender();
                             }
@@ -188,7 +187,7 @@ public class Vendedor extends Agent {
 
                             myGui.addOrUpdateSubasta(libro, precioActual, numPropuestas, "Oferta recibida");
                         }
-                        // Nota: Si mandan REFUSE (rechazar), solo sumamos respuestasRecibidas pero no hacemos nada más.
+                        //  Si mandan REFUSE, solo sumo respuestasRecibidas pero no hacemos nada más.
 
                         // Si ya han contestado TODOS los compradores que encontramos...
                         if (respuestasRecibidas >= compradores.length) {
@@ -217,7 +216,7 @@ public class Vendedor extends Agent {
                     
 
                     if (numPropuestas == 0) {
-                        // CASO A: Nadie quiere el libro a este precio.
+                        // CASO 1  Nadie quiere el libro a este precio.
                         if (ganadorAnterior != null) {
                             //si nadie nesta ronda quiere el libro se lo damos al que pujo en la ronda anterior por el
                             
@@ -231,14 +230,14 @@ public class Vendedor extends Agent {
                         terminado = true; // Fin del comportamiento
                     }
                     else if (numPropuestas == 1) {
-                        // CASO B: Solo hay UN interesado en esta ronda.
+                        // CASO 2 Solo hay UN interesado en esta ronda.
                         // No hace falta subir más el precio, se lo vendemos a él directamente.
                         
                         aceptarVenta(posibleGanador, precioActual);
                         terminado = true; // Fin
                     }
                     else {
-                        // CASO C: Hay COMPETENCIA (>1 propuestas).
+                        // CASO 3 Hay COMPETENCIA (>1 propuestas).
                         // Guardamos al ganador de esta ronda como "ganadorAnterior" por si en la siguiente nadie puja
                         ganadorAnterior = posibleGanador;
 
@@ -267,7 +266,7 @@ public class Vendedor extends Agent {
             for(AID c : compradores) {
                 if(!c.equals(ganador)) info.addReceiver(c); // A todos menos al que ya le avisé
             }
-            //"FINALIZADA:Libro:Ganador:Precio". El Comprador espera este formato exacto
+            //"FINALIZADA:Libro:Ganador:Precio".IMPORTANTE MISMO FORMATO NO COMPRADOR
             info.setContent("FINALIZADA:" + libro + ":" + ganador.getLocalName() + ":" + precio);
             info.setConversationId("subasta-" + libro);
             agent.send(info);
@@ -296,6 +295,17 @@ public class Vendedor extends Agent {
             return terminado;
         }
     }
+    //Terminacion del agente
+    protected void takeDown() {
+        if (myGui != null) {
+            myGui.dispose(); // Cierra la ventana si se cierra el agente
+        }
+        System.out.println("Vendedor " + getLocalName() + " terminando.");
+
+    }
+
+
+
 }
 
 /*Protocolo comunicacion

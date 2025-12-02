@@ -8,12 +8,11 @@ import jade.domain.FIPAAgentManagement.*;
 import jade.domain.FIPAException;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+
 
 public class Comprador extends Agent {
     //Mapa donde guardo cuanto dinero tengo para cada libro
-    private Map<String, Integer> presupuestoPorLibro = new ConcurrentHashMap<>();//Por tema de seguridad, interfaz grafica corre en paralelo al agente
-    //si chochan ambos programa no funciona
+    private Map<String, Integer> presupuestoPorLibro = new HashMap<>();
     private CompradorGUI compradorGUI;
 
     protected void setup() {
@@ -42,28 +41,29 @@ public class Comprador extends Agent {
         try {
             presupuesto = Integer.parseInt(dineroStr);
         } catch (NumberFormatException e) {
-            presupuesto = 100; //si falla pongo 100 por defecto
+            presupuesto = 100; //Si no ponen nada meto 100 por defecto
         }
 
         //Guardo presupuesto por cada libro en el mapa
         for (String l : libros){
-            presupuestoPorLibro.put(l.toLowerCase(), presupuesto);//Poño directamente todos en minuscula pa que non haia erros
+            presupuestoPorLibro.put(l.toLowerCase(), presupuesto);//Pongo directamente todos en minuscula pa que non haya  errores
         }
 
         //arranco la interfaz grafica del comprador
         compradorGUI = new CompradorGUI(this, presupuestoPorLibro);
         compradorGUI.log("Agente " + getLocalName() + " creado. Intereses: " + Arrays.toString(libros));
 
-        //me apunto en las paginas amarillas
+        //me registro en DF para que el vendedor me pueda ver
         registrarseEnDF();
 
-        //Behaviour principal: bucle infinito para recibir mensajes
+        //Behaviour(trabajo que realiza los compradores) principal bucle infinito para recibir mensajes
         addBehaviour(new CyclicBehaviour() {
+
             public void action() {
                 ACLMessage msg = receive();
                 if (msg != null) {
                     //si me llega mensaje lo proceso
-                    handleMessage(msg);
+                    procesarMensaje(msg);
                 } else {
                     //si no hay mensaje bloqueo para no gastar cpu
                     block();
@@ -86,7 +86,7 @@ public class Comprador extends Agent {
         }
     }
 
-    private void handleMessage(ACLMessage msg) {
+    private void procesarMensaje(ACLMessage msg) {
         int perf = msg.getPerformative();
         String convId = msg.getConversationId();
         String content = msg.getContent();
@@ -102,30 +102,34 @@ public class Comprador extends Agent {
             //miro si el libro me interesa
             if (presupuestoPorLibro.containsKey(titulo)) {
                 int presupuesto = presupuestoPorLibro.get(titulo);
-                ACLMessage reply = msg.createReply();
-                
+                ACLMessage respuesta = msg.createReply();
+                /*Mira presupuestoPorLibro, si precio<= presupuesto-->manda PROPOSE (PUJA)
+	               En caso de que NO --> REFUSE NO_INTERESADO
+	               Recibe ACCEPT_PROPOSAL si gana ou INFORM para saber quen ganou se perde.
+	               */
+
                 //compruebo si tengo dinero suficiente
                 if (precio <= presupuesto) {
-                    reply.setPerformative(ACLMessage.PROPOSE);
-                    reply.setContent(String.valueOf(precio));
+                    respuesta.setPerformative(ACLMessage.PROPOSE);
+                    respuesta.setContent(String.valueOf(precio));
                     compradorGUI.log(" -> ¡PUJO en " + titulo + " a " + precio + "€!");
                     compradorGUI.updateSubastaStatus(titulo, "Pujando: " + precio + "€");
                 } else {
                     //si es muy caro paso
-                    reply.setPerformative(ACLMessage.REFUSE);
-                    reply.setContent("TOO_EXPENSIVE");
+                    respuesta.setPerformative(ACLMessage.REFUSE);
+                    respuesta.setContent("MUY_CARO");
                     compradorGUI.updateSubastaStatus(titulo, "Muy caro: " + precio + "€");
                 }
-                send(reply);
+                send(respuesta);
             } else {
                 // No interesado -> ignorar o responder REFUSE
-                ACLMessage reply = msg.createReply();
-                reply.setPerformative(ACLMessage.REFUSE);
-                reply.setContent("NO_INTERESADO");
-                send(reply);
+                ACLMessage respuesta = msg.createReply();
+                respuesta.setPerformative(ACLMessage.REFUSE);
+                respuesta.setContent("NO_INTERESADO");
+                send(respuesta);
             }
         } else if (perf == ACLMessage.ACCEPT_PROPOSAL) {
-            // Ganador: me dicen que gané la subasta
+            // Ganador
             compradorGUI.log("***************************");
             compradorGUI.log("¡¡GANÉ " + content + "!!");
             compradorGUI.log("***************************");

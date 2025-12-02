@@ -1,14 +1,14 @@
 import javax.swing.*;
 import java.awt.*;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 public class CompradorGUI extends JFrame {
     private Comprador comprador;
     private JTextArea logArea;
     private DefaultListModel<String> listaModel;
     //mapa de estado por libro
-    private Map<String, String> estados = new ConcurrentHashMap<>();
+    private Map<String, String> estados = new HashMap<>();
 
     public CompradorGUI(Comprador a, Map<String, Integer> intereses) {
         super(a.getLocalName());
@@ -16,14 +16,14 @@ public class CompradorGUI extends JFrame {
 
         JPanel top = new JPanel(new BorderLayout());
         StringBuilder sb = new StringBuilder("<html><b>Intereses:</b> ");
-        intereses.keySet().forEach(k -> sb.append(k).append(" "));
+        intereses.keySet().forEach(k -> sb. append(k). append(" "));
         sb.append("</html>");
         top.add(new JLabel(sb.toString()), BorderLayout.NORTH);
 
         listaModel = new DefaultListModel<>();
         JList<String> lista = new JList<>(listaModel);
         JScrollPane listScroll = new JScrollPane(lista);
-        listScroll.setBorder(BorderFactory.createTitledBorder("Estado de subastas"));
+        listScroll. setBorder(BorderFactory.createTitledBorder("Estado de subastas"));
 
         logArea = new JTextArea(8, 20);
         logArea.setEditable(false);
@@ -31,8 +31,8 @@ public class CompradorGUI extends JFrame {
         logScroll.setBorder(BorderFactory.createTitledBorder("Log"));
 
         getContentPane().setLayout(new BorderLayout(6,6));
-        getContentPane().add(top, BorderLayout.NORTH);
-        getContentPane().add(listScroll, BorderLayout.CENTER);
+        getContentPane(). add(top, BorderLayout. NORTH);
+        getContentPane(). add(listScroll, BorderLayout.CENTER);
         getContentPane().add(logScroll, BorderLayout.SOUTH);
 
         setSize(320, 420);
@@ -41,7 +41,7 @@ public class CompradorGUI extends JFrame {
 
         addWindowListener(new java.awt.event.WindowAdapter() {
             public void windowClosing(java.awt.event.WindowEvent e) {
-                comprador.doDelete();
+                comprador. doDelete();
             }
         });
 
@@ -53,7 +53,7 @@ public class CompradorGUI extends JFrame {
 
     public void log(String msg) {
         SwingUtilities.invokeLater(() -> {
-            logArea.append(msg + "\n");
+            logArea. append(msg + "\n");
             logArea.setCaretPosition(logArea.getDocument().getLength());
         });
     }
@@ -66,7 +66,7 @@ public class CompradorGUI extends JFrame {
     }
 
     private void rebuildList() {
-        listaModel.clear();
+        listaModel. clear();
         estados.forEach((k,v) -> listaModel.addElement(k + " : " + v));
     }
 }

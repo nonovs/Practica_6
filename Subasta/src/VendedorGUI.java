@@ -21,7 +21,7 @@ public class VendedorGUI extends JFrame {
 
         setLayout(new BorderLayout(8, 8));
 
-        // --- Panel Superior: Crear Subasta ---
+        // -Panel Superior: Crear Subasta
         JPanel inputPanel = new JPanel(new GridLayout(2, 4, 6, 6));
         inputPanel.setBorder(BorderFactory.createTitledBorder("Gestión de Subastas"));
 
@@ -42,30 +42,30 @@ public class VendedorGUI extends JFrame {
 
         add(inputPanel, BorderLayout.NORTH);
 
-        // --- Panel Central: Pestañas ---
+        // Panel Central: Pestañas
         tabbedPane = new JTabbedPane();
         add(tabbedPane, BorderLayout.CENTER);
 
-        // --- Panel Derecho: Log Individual ---
+        // Panel Derecho: Log Individual
         logAreaIndividual = new JTextArea(15, 25);
         logAreaIndividual.setEditable(false);
         JScrollPane logScrollIndividual = new JScrollPane(logAreaIndividual);
         logScrollIndividual.setBorder(BorderFactory.createTitledBorder("Log de Subasta Seleccionada"));
         add(logScrollIndividual, BorderLayout.EAST);
 
-        // --- Panel Inferior: Log General ---
+        // Panel Inferior: Log General
         logAreaGeneral = new JTextArea(8, 40);
         logAreaGeneral.setEditable(false);
         JScrollPane logScrollGeneral = new JScrollPane(logAreaGeneral);
         logScrollGeneral.setBorder(BorderFactory.createTitledBorder("Log General"));
         add(logScrollGeneral, BorderLayout.SOUTH);
 
-        // EVENTO: Cambiar log individual al cambiar de pestaña
+        // Cambiar log individual al cambiar de pestaña
         tabbedPane.addChangeListener(e -> {
             actualizarLogIndividualVisible();
         });
 
-        // ACCIÓN: Botón CREAR
+        //  Botón CREAR
         btnCrear.addActionListener(e -> {
             try {
                 String titulo = titleField.getText().trim();
