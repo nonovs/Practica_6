@@ -12,7 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Comprador extends Agent {
     //Mapa donde guardo cuanto dinero tengo para cada libro
-    private Map<String, Integer> presupuestoPorLibro = new ConcurrentHashMap<>();
+    private Map<String, Integer> presupuestoPorLibro = new ConcurrentHashMap<>();//Por tema de seguridad, interfaz grafica corre en paralelo al agente
+    //si chochan ambos programa no funciona
     private CompradorGUI compradorGUI;
 
     protected void setup() {
@@ -28,10 +29,14 @@ public class Comprador extends Agent {
         String dineroStr = (String) args[1];
 
         //separo los libros por comas y quito espacios
-        String[] libros = Arrays.stream(librosRaw.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toArray(String[]::new);
+        String[] partes = librosRaw.split(",");
+        List<String> listaTemp = new ArrayList<>();
+        for (String s : partes) {
+            if (!s.trim().isEmpty()) {
+                listaTemp.add(s.trim());
+            }
+        }
+        String[] libros = listaTemp.toArray(new String[0]);
 
         int presupuesto;
         try {

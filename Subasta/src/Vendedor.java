@@ -15,8 +15,10 @@ public class Vendedor extends Agent {
 
 
     // subastasActivas: Map con los procesos (Behaviours) que están en ejecución
-    private Map<String, FuncionamientoSubasta> subastasActivas = new ConcurrentHashMap<>();
-
+    private Map<String, FuncionamientoSubasta> subastasActivas = new ConcurrentHashMap<>();//Asi mantengo referencia a los procesos,
+    //Me permite saber que libros se estan subastando ahora y evita que dos subastas iguales vallan al mismo libro
+    //COn concurrentHshMap non haria falta aqui porque realmente es para seguridad en caso de tener varios hilos accediendo, aunque
+    //Jade estandar el agente es monohilo
     // pendientes: Datos de subastas creadas en la GUI pero que aún no iniciados
     private final Map<String, SubastaInfo> pendientes = Collections.synchronizedMap(new HashMap<>());
 
@@ -26,7 +28,7 @@ public class Vendedor extends Agent {
         int precioInicial;
         int incremento;
 
-        SubastaInfo(String t, int p, int i) {
+        SubastaInfo(String t, int p, int i) {//Asi gestiono de forma mas comoda todos los datos de los libros
             this.titulo = t;
             this.precioInicial = p;
             this.incremento = i;
@@ -295,3 +297,10 @@ public class Vendedor extends Agent {
         }
     }
 }
+
+/*Protocolo comunicacion
+FIPA-CONTRACT-NET
+ 1. Vendedor envia un CFP
+ 2.Compradores mandan PROPOSE ou REFUSE
+ 3. Vendedor envia ACCEPT_PROPOSAL al gandadore INFORM a los perdedores
+ */

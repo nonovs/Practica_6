@@ -152,8 +152,8 @@ public class VendedorGUI extends JFrame {
     }
 
     public void addOrUpdateSubasta(String titulo, int precio, int pujas, String estado) {
-        SwingUtilities.invokeLater(() -> {
-            // 1. Actualizar tabla
+        SwingUtilities.invokeLater(() -> {//StackOverflow me dijo que era mejor ponerlo por tema de gestion de hlos y problemas
+            // 1. Actualizar tabla, Los agentes corren en hilos del JADE y la interfaz en el hilo de AWT/SWING, con invokelater pongo la acutalizon en la cola de la interfaz pro seguridad para que no se quede colgado
             JTable table = subastaTables.get(titulo);
             if (table != null) {
                 DefaultTableModel model = (DefaultTableModel) table.getModel();
