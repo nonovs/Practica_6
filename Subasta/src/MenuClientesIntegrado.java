@@ -1,23 +1,14 @@
-import jade.core. Profile;
-import jade.core.ProfileImpl;
-import jade.core. Runtime;
-import jade.wrapper.AgentContainer;
+import jade.core.Agent;
 import jade.wrapper.AgentController;
-
 import javax.swing.*;
 import java.awt.*;
 
-public class MenuClientes extends JFrame {
-    private AgentContainer contenedorAgentes;
+public class MenuClientesIntegrado extends JFrame {
+    private Agent agenteLauncher;
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new MenuClientes());
-    }
-
-    public MenuClientes() {
-        super("GENERADOR DE COMPRADORES");
-
-        conectarAJade();
+    public MenuClientesIntegrado(Agent launcher) {
+        super("GENERADOR DE COMPRADORES (Integrado)");
+        this.agenteLauncher = launcher;
 
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
@@ -25,10 +16,10 @@ public class MenuClientes extends JFrame {
 
         JTextField campoNombre = crearCampo(panel, "Nombre Cliente:");
 
-        // NUEVA INTERFAZ: Permite formato "Libro:Precio,Libro:Precio"
-        JLabel lblInstrucciones = new JLabel("<html><b>Formato: </b> Libro:Precio,Libro:Precio<br>" +
+        // Instrucciones
+        JLabel lblInstrucciones = new JLabel("<html><b>Formato:</b> Libro:Precio,Libro: Precio<br>" +
                 "Ejemplo: Java:50,IA:80,Redes:30</html>");
-        lblInstrucciones. setAlignmentX(Component. CENTER_ALIGNMENT);
+        lblInstrucciones.setAlignmentX(Component.CENTER_ALIGNMENT);
         lblInstrucciones.setForeground(new Color(50, 50, 150));
         panel.add(lblInstrucciones);
         panel.add(Box.createVerticalStrut(8));
@@ -49,13 +40,14 @@ public class MenuClientes extends JFrame {
         btnCrear.setForeground(Color.WHITE);
 
         btnCrear.addActionListener(e -> {
-            String nombre = campoNombre.getText().trim();
+            String nombre = campoNombre. getText().trim();
             String libros = campoLibros.getText().trim();
 
-            if (! nombre.isEmpty() && !libros.isEmpty()) {
-                crearAgente(nombre, libros);
-                // Cerrar la ventana después de crear el cliente
-                dispose();
+            if (!nombre. isEmpty() && !libros.isEmpty()) {
+                crearComprador(nombre, libros);
+                // Limpar campos después de crear
+                campoNombre.setText("");
+                campoLibros.setText("");
             } else {
                 JOptionPane.showMessageDialog(this, "Rellena todos los datos");
             }
@@ -67,33 +59,18 @@ public class MenuClientes extends JFrame {
         getContentPane().add(panel);
         setSize(450, 320);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame. DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setVisible(true);
     }
 
-    private void conectarAJade() {
+    private void crearComprador(String nombre, String librosYPrecios) {
         try {
-            Runtime rt = Runtime.instance();
-            Profile p = new ProfileImpl();
-            p.setParameter(Profile.MAIN_HOST, "localhost");
-            p.setParameter(Profile.MAIN_PORT, "1099");
-            contenedorAgentes = rt.createAgentContainer(p);
-            System.out.println("--- Conectado al sistema JADE correctamente ---");
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error conectando a JADE.\nAsegúrate de que el Main Container esté ejecutándose.");
-            e.printStackTrace();
-            System.exit(1);
-        }
-    }
-
-    private void crearAgente(String nombre, String librosYPrecios) {
-        try {
-            // Ahora solo pasamos un argumento con el formato "Libro:Precio,Libro:Precio"
             Object[] args = new Object[]{librosYPrecios};
-            AgentController agente = contenedorAgentes.createNewAgent(nombre, "Comprador", args);
-            agente.start();
-            System. out.println("Cliente " + nombre + " creado exitosamente.");
-            JOptionPane.showMessageDialog(this, "Cliente " + nombre + " creado exitosamente!");
+            AgentController comprador = agenteLauncher. getContainerController()
+                    .createNewAgent(nombre, "Comprador", args);
+            comprador.start();
+            System.out.println("Cliente " + nombre + " creado exitosamente desde JADE.");
+            JOptionPane.showMessageDialog(this, "Cliente " + nombre + " creado!");
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error al crear agente: " + nombre + "\n" + e.getMessage());
             e.printStackTrace();
