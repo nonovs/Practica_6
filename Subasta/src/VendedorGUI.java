@@ -69,7 +69,7 @@ public class VendedorGUI extends JFrame {
         fieldsPanel.add(titleField);
         fieldsPanel.add(new JLabel("Precio Inicial:"));
         fieldsPanel.add(priceField);
-        fieldsPanel.add(new JLabel("Incremento:"));
+        fieldsPanel.add(new JLabel("Incremento:"));//a
         fieldsPanel.add(incField);
 
         // 2. Sub-panel para el botón

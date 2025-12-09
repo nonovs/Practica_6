@@ -86,7 +86,7 @@ public class Vendedor extends Agent {
             super(a);
             this.agent = a;
             this.libro = titulo;
-            this.precioActual = p;
+            this.precioActual = p;//a
             this.incremento = inc;
         }
 

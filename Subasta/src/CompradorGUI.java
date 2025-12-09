@@ -28,7 +28,7 @@ public class CompradorGUI extends JFrame {
 
         listaModel = new DefaultListModel<>();
         JList<String> lista = new JList<>(listaModel);
-        JScrollPane listScroll = new JScrollPane(lista);
+        JScrollPane listScroll = new JScrollPane(lista);//a
         listScroll.setBorder(BorderFactory.createTitledBorder("Estado de subastas"));
 
         logArea = new JTextArea(8, 20);

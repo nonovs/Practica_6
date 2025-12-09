@@ -135,7 +135,7 @@ public class Comprador extends Agent {
     private void procesarMensaje(ACLMessage msg) {
         int perf = msg. getPerformative();
         String convId = msg.getConversationId();
-        String content = msg.getContent();
+        String content = msg.getContent();//a
 
         // CFP: Me llega oferta "Libro:precio"
         if (perf == ACLMessage.CFP && content != null && content.contains(":")) {
