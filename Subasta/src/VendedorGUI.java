@@ -1,8 +1,11 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import javax.imageio.ImageIO;
 
 public class VendedorGUI extends JFrame {
     private Vendedor myAgent;
@@ -14,63 +17,103 @@ public class VendedorGUI extends JFrame {
 
     private JTextArea logAreaGeneral;
     private JTextArea logAreaIndividual;
+    private BufferedImage fondoImagen;
 
     public VendedorGUI(Vendedor a) {
         super("Vendedor: " + a.getLocalName());
         myAgent = a;
 
-        setLayout(new BorderLayout(8, 8));
+        // Cargar la imagen de fondo
+        try {
+            fondoImagen = ImageIO.read(new File("fondo.jpg"));
+        } catch (Exception e) {
+            System.out.println("No se pudo cargar la imagen de fondo: " + e.getMessage());
+        }
 
-        // -Panel Superior: Crear Subasta
-        JPanel inputPanel = new JPanel(new GridLayout(2, 4, 6, 6));
+        // Panel principal con imagen de fondo
+        JPanel mainPanel = new JPanel(new BorderLayout(8, 8)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (fondoImagen != null) {
+                    // Dibujar la imagen escalada al tamaño del panel
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints. VALUE_INTERPOLATION_BILINEAR);
+                    g2d.drawImage(fondoImagen, 0, 0, getWidth(), getHeight(), this);
+                }
+            }
+        };
+        mainPanel.setOpaque(false);
+
+        setContentPane(mainPanel);
+
+        // --- Panel Superior: Crear Subasta ---
+        JPanel inputPanel = new JPanel(new GridLayout(2, 1, 5, 5));
         inputPanel.setBorder(BorderFactory.createTitledBorder("Gestión de Subastas"));
 
+        // 1. Sub-panel para los campos (FlowLayout alinea todo en una fila centrada)
+        // El '20' es el espacio horizontal entre elementos
+        JPanel fieldsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+
         JTextField titleField = new JTextField();
+        titleField.setColumns(15); // IMPORTANTE: Definir ancho visual
+
         JTextField priceField = new JTextField("10");
+        priceField.setColumns(5);
+
         JTextField incField = new JTextField("5");
-        JButton btnCrear = new JButton("1. CREAR");
-        JButton btnStart = new JButton("2. INICIAR (Seleccionada)");
+        incField.setColumns(5);
 
-        inputPanel.add(new JLabel("Libro:"));
-        inputPanel.add(titleField);
-        inputPanel.add(new JLabel("Precio Inicial:"));
-        inputPanel.add(priceField);
-        inputPanel.add(new JLabel("Incremento:"));
-        inputPanel.add(incField);
-        inputPanel.add(btnCrear);
-        inputPanel.add(btnStart);
+        // Añadimos pares Etiqueta-Campo al sub-panel
+        fieldsPanel.add(new JLabel("Libro:"));
+        fieldsPanel.add(titleField);
+        fieldsPanel.add(new JLabel("Precio Inicial:"));
+        fieldsPanel.add(priceField);
+        fieldsPanel.add(new JLabel("Incremento:"));
+        fieldsPanel.add(incField);
 
-        add(inputPanel, BorderLayout.NORTH);
+        // 2. Sub-panel para el botón
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton btnCrear = new JButton("CREAR E INICIAR SUBASTA");
+        btnCrear.setBackground(new Color(60, 179, 113));
+        btnCrear.setForeground(Color.WHITE);
+        buttonPanel.add(btnCrear);
 
-        // Panel Central: Pestañas
+        // Añadimos los dos sub-paneles al panel superior
+        inputPanel.add(fieldsPanel);
+        inputPanel.add(buttonPanel);
+
+        mainPanel.add(inputPanel, BorderLayout.NORTH);
+
+        // --- Panel Central: Pestañas ---
         tabbedPane = new JTabbedPane();
-        add(tabbedPane, BorderLayout.CENTER);
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
 
-        // Panel Derecho: Log Individual
+        // --- Panel Derecho: Log Individual ---
         logAreaIndividual = new JTextArea(15, 25);
         logAreaIndividual.setEditable(false);
         JScrollPane logScrollIndividual = new JScrollPane(logAreaIndividual);
         logScrollIndividual.setBorder(BorderFactory.createTitledBorder("Log de Subasta Seleccionada"));
-        add(logScrollIndividual, BorderLayout.EAST);
+        mainPanel.add(logScrollIndividual, BorderLayout.EAST);
 
-        // Panel Inferior: Log General
+        // --- Panel Inferior: Log General ---
         logAreaGeneral = new JTextArea(8, 40);
         logAreaGeneral.setEditable(false);
         JScrollPane logScrollGeneral = new JScrollPane(logAreaGeneral);
         logScrollGeneral.setBorder(BorderFactory.createTitledBorder("Log General"));
-        add(logScrollGeneral, BorderLayout.SOUTH);
+        mainPanel.add(logScrollGeneral, BorderLayout.SOUTH);
 
-        // Cambiar log individual al cambiar de pestaña
+        // EVENTO: Cambiar log individual al cambiar de pestaña
         tabbedPane.addChangeListener(e -> {
             actualizarLogIndividualVisible();
         });
 
-        //  Botón CREAR
+        // ACCIÓN: Botón CREAR E INICIAR
         btnCrear.addActionListener(e -> {
             try {
-                String titulo = titleField.getText().trim();
+                String titulo = titleField.getText(). trim();
                 int precio = Integer.parseInt(priceField.getText().trim());
-                int incremento = Integer.parseInt(incField.getText().trim());
+                int incremento = Integer.parseInt(incField. getText().trim());
 
                 if (titulo.isEmpty()) {
                     JOptionPane.showMessageDialog(this, "El título no puede estar vacío.");
@@ -81,48 +124,33 @@ public class VendedorGUI extends JFrame {
                     return;
                 }
 
-                // 1. Almacenar en el Agente (estado Pendiente)
+                // 1. Crear la pestaña en la GUI
+                addSubastaTab(titulo, precio, 0, "Iniciando...");
+
+                // 2. Almacenar e iniciar inmediatamente en el Agente
                 if (myAgent != null) {
                     myAgent.almacenarSubasta(titulo, precio, incremento);
+                    boolean iniciada = myAgent.iniciarSubastaEspecifica(titulo);
+                    if (iniciada) {
+                        log("Subasta creada e iniciada: " + titulo);
+                    } else {
+                        log("Error: No se pudo iniciar la subasta " + titulo);
+                    }
                 }
 
-                // 2. Crear la pestaña en la GUI
-                //uso titulo como clave unica
-                addSubastaTab(titulo, precio, 0, "Creada (Pendiente)");
-
-                log("Subasta creada: " + titulo);
-                titleField.setText(""); //limpio campo
+                // Limpiar campos
+                titleField.setText("");
+                priceField.setText("10");
+                incField.setText("5");
 
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Introduce números válidos en precio e incremento.");
-            }
-        });
-
-        // ACCIÓN: Botón INICIAR (Solo la seleccionada)
-        btnStart.addActionListener(e -> {
-            int idx = tabbedPane.getSelectedIndex();
-            if (idx == -1) {
-                JOptionPane.showMessageDialog(this, "No hay ninguna subasta seleccionada.");
-                return;
-            }
-
-            //Obtenemos el título de la pestaña actual
-            String tituloSeleccionado = tabbedPane.getTitleAt(idx);
-
-            log("Solicitando iniciar subasta: " + tituloSeleccionado);
-
-            if (myAgent != null) {
-                //Llamamos al método del agente para iniciar UNA sola
-                boolean iniciada = myAgent.iniciarSubastaEspecifica(tituloSeleccionado);
-                if (!iniciada) {
-                    log("Aviso: La subasta '" + tituloSeleccionado + "' ya está activa o no se encontró en pendientes.");
-                }
+                JOptionPane. showMessageDialog(this, "Introduce números válidos en precio e incremento.");
             }
         });
 
         setSize(950, 650);
-        setLocationRelativeTo(null); //centrar en pantalla
-        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(WindowConstants. DISPOSE_ON_CLOSE);
         setVisible(true);
     }
 
@@ -137,7 +165,7 @@ public class VendedorGUI extends JFrame {
 
         subastaTables.put(titulo, table);
 
-        //Log individual (oculto, se guarda en memoria)
+        // Log individual (oculto, se guarda en memoria)
         JTextArea logIndividual = new JTextArea();
         logIndividual.setEditable(false);
         logIndividual.append("--- Subasta: " + titulo + " ---\n");
@@ -145,26 +173,31 @@ public class VendedorGUI extends JFrame {
 
         // Panel con tabla y scroll
         JScrollPane scroll = new JScrollPane(table);
-        tabbedPane.addTab(titulo, scroll); //El título de la pestaña es la CLAVE
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        table.setOpaque(true);
+        table.setBackground(new Color(255, 255, 255, 230)); // Fondo blanco semi-transparente
+
+        tabbedPane.addTab(titulo, scroll);
 
         // Seleccionar la nueva pestaña creada para verla inmediatamente
         tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
     }
 
     public void addOrUpdateSubasta(String titulo, int precio, int pujas, String estado) {
-        SwingUtilities.invokeLater(() -> {//StackOverflow me dijo que era mejor ponerlo por tema de gestion de hlos y problemas
-            // 1. Actualizar tabla, Los agentes corren en hilos del JADE y la interfaz en el hilo de AWT/SWING, con invokelater pongo la acutalizon en la cola de la interfaz pro seguridad para que no se quede colgado
+        SwingUtilities.invokeLater(() -> {
+            // 1. Actualizar tabla
             JTable table = subastaTables.get(titulo);
             if (table != null) {
                 DefaultTableModel model = (DefaultTableModel) table.getModel();
                 if (model.getRowCount() > 0) {
                     model.setValueAt(precio, 0, 0);
                     model.setValueAt(pujas, 0, 1);
-                    model.setValueAt(estado, 0, 2);
+                    model. setValueAt(estado, 0, 2);
                 }
             }
 
-            // 2. Actualizar Logs
+            // 2.  Actualizar Logs
             String mensaje = String.format("[%s] Precio: %d | Pujas: %d | Estado: %s\n", titulo, precio, pujas, estado);
 
             // Log General
@@ -184,7 +217,7 @@ public class VendedorGUI extends JFrame {
         });
     }
 
-    //Metodo auxiliar para refrescar el panel derecho segun la pestaña actual
+    // Metodo auxiliar para refrescar el panel derecho segun la pestaña actual
     private void actualizarLogIndividualVisible() {
         int idx = tabbedPane.getSelectedIndex();
         if (idx >= 0) {
@@ -192,7 +225,7 @@ public class VendedorGUI extends JFrame {
             JTextArea logGuardado = subastaLogs.get(titulo);
             if (logGuardado != null) {
                 logAreaIndividual.setText(logGuardado.getText());
-                logAreaIndividual.setCaretPosition(logAreaIndividual.getDocument().getLength());
+                logAreaIndividual.setCaretPosition(logAreaIndividual.getDocument(). getLength());
             }
         } else {
             logAreaIndividual.setText("");

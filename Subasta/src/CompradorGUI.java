@@ -7,15 +7,18 @@ public class CompradorGUI extends JFrame {
     private Comprador comprador;
     private JTextArea logArea;
     private DefaultListModel<String> listaModel;
+    private int presupuestoGlobal;
     //mapa de estado por libro
     private Map<String, String> estados = new HashMap<>();
 
     public CompradorGUI(Comprador a, Map<String, Integer> intereses) {
         super(a.getLocalName());
         comprador = a;
-
+        if (!intereses.isEmpty()) {//Pa coller el presupyesto de todos los libros (es para todos el mismo)
+            this.presupuestoGlobal = intereses.values().iterator().next();
+        }
         JPanel top = new JPanel(new BorderLayout());
-        StringBuilder sb = new StringBuilder("<html><b>Intereses:</b> ");
+        StringBuilder sb = new StringBuilder("<html><b>Intereses:</b> "); //LO pongo en formato de html, y la b es para ponerlo en negrita
         intereses.keySet().forEach(k -> sb. append(k). append(" "));
         sb.append("</html>");
         top.add(new JLabel(sb.toString()), BorderLayout.NORTH);
@@ -66,7 +69,19 @@ public class CompradorGUI extends JFrame {
     }
 
     private void rebuildList() {
-        listaModel. clear();
-        estados.forEach((k,v) -> listaModel.addElement(k + " : " + v));
+        listaModel.clear();
+
+        // Bucle FOR "tradicional" (Opción keySet)
+        for (String titulo : estados.keySet()) {
+            // 1. Definimos la variable 'estado' recuperándola del mapa
+            String estado = estados.get(titulo);
+
+            // 2. Ahora ya existen 'titulo' y 'estado', así que esta línea funcionará
+            String linea = String.format("%s [Max: %d€] : %s", titulo.toUpperCase(), presupuestoGlobal, estado);
+
+            // 3. Lo añadimos a la lista
+            listaModel.addElement(linea);
+        }
+
     }
 }

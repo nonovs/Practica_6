@@ -16,8 +16,8 @@ public class Vendedor extends Agent {
     // subastasActivas: Map con los procesos (Behaviours) que están en ejecución
     private Map<String, FuncionamientoSubasta> subastasActivas = new HashMap<>();//Asi mantengo referencia a los procesos,
     //Me permite saber que libros se estan subastando ahora y evita que dos subastas iguales vallan al mismo libro
-    //COn concurrentHshMap non haria falta aqui porque realmente es para seguridad en caso de tener varios hilos accediendo, aunque
-    //Jade estandar el agente es monohilo
+
+    //Jade estandar el agente es monohilo por ello no me hace falta lo de concurrentHashMap
     // pendientes: Datos de subastas creadas en la GUI pero que aún no iniciados
     private final Map<String, SubastaInfo> pendientes = new HashMap<>();
 
@@ -34,16 +34,16 @@ public class Vendedor extends Agent {
         }
     }
 
-    // Cro el agente
+    // Creo el agente
     protected void setup() {
-        //Inicializo la ventanadel agente
+        //Inicializo la ventana del agente
         javax.swing.SwingUtilities.invokeLater(() -> {myGui = new VendedorGUI(this);myGui.log("Agente Vendedor iniciado: " + getLocalName());});
     }
 
 
     //Funcion de los botones
 
-    // Botón "Crear": Solo guarda los datos, no arranca nada aún.
+    // Botón "Crear": guarda los datos (e inicia la subasta)
     public void almacenarSubasta(String titulo, int precio, int inc) {
         pendientes.put(titulo, new SubastaInfo(titulo, precio, inc));
     }
@@ -74,7 +74,7 @@ public class Vendedor extends Agent {
 
         private AID[] compradores = new AID[0]; //Lista de compradores interesados
         private MessageTemplate mt;// Filtro para coger solo los mensajes que interesan
-        private int respuestasRecibidas;//COntador de respuestas
+        private int respuestasRecibidas;//Contador de respuestas
         private int numPropuestas;// Contador de personas que han entrado a la puja
 
         private AID posibleGanador; //Primera persona que ha pujado en esta ronda
@@ -90,7 +90,7 @@ public class Vendedor extends Agent {
             this.incremento = inc;
         }
 
-        // Este método  se ejecuta en bucle infinito hasta que digamos "done()"
+        // Este método  se ejecuta en bucle infinito hasta que se llame a "done()"
         public void action() {
             switch (paso) {
                 case 0:
